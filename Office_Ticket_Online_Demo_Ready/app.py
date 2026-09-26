@@ -460,6 +460,13 @@ def render_ticket_card(row):
     pclass = {"Urgent":"b-high","High":"b-high","Medium":"b-med","Normal":"b-normal"}.get(priority,"b-normal")
     mode = row.get("assignment_mode","Individual")
     owner = row.get("claimed_name") or row.get("assigned_name") or "Unassigned"
+    if row.get("assignment_mode") == "Team":
+        owners = ticket_task_ownership(row["id"])
+        unique = sorted({x["owner"] for x in owners if x["owner"] != "Available"})
+        if len(unique) > 1:
+            owner = "Multiple Team Members"
+        elif len(unique) == 1:
+            owner = unique[0]
     due = row.get("due_date") or "-"
     overdue = False
     try:
@@ -467,7 +474,7 @@ def render_ticket_card(row):
     except Exception:
         overdue = False
     extra = '<span class="badge b-team">TEAM POOL</span>' if mode == "Team" else ""
-    claimed = f'<span class="badge b-claimed">Owner: {owner}</span>' if owner != "Unassigned" else ""
+    claimed = f'<span class="badge b-claimed">Handled By: {owner}</span>' if owner != "Unassigned" else ""
     st.markdown(f"""
     <div class="ticket-card">
       <div class="ticket-title">{row['ticket_no']} &nbsp;•&nbsp; {row['customer_name']}</div>
@@ -547,6 +554,96 @@ def claim_task_atomic(task_id, user_id):
         conn.close()
 
 
+
+def claim_selected_tasks_atomic(ticket_id, task_ids, user_id):
+    if not task_ids:
+        return False, "Select at least one task."
+    conn = get_conn()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        marks = ",".join("?" for _ in task_ids)
+        rows = conn.execute(
+            f"""SELECT id,task_name,claimed_by,assigned_to,status
+                FROM ticket_tasks
+                WHERE ticket_id=? AND id IN ({marks})""",
+            [ticket_id] + list(task_ids)
+        ).fetchall()
+        if len(rows) != len(task_ids):
+            conn.rollback()
+            return False, "Some selected tasks are no longer available."
+        unavailable = [
+            r["task_name"] for r in rows
+            if r["claimed_by"] is not None or r["assigned_to"] is not None or r["status"] == "Done"
+        ]
+        if unavailable:
+            conn.rollback()
+            return False, "Already taken/completed: " + ", ".join(unavailable)
+        for task_id in task_ids:
+            conn.execute("""
+                UPDATE ticket_tasks
+                SET claimed_by=?,status='In Progress',assigned_at=?,updated_at=?
+                WHERE id=? AND claimed_by IS NULL AND assigned_to IS NULL AND status!='Done'
+            """,(user_id,now(),now(),task_id))
+        conn.commit()
+        return True, f"{len(task_ids)} task(s) claimed successfully."
+    except Exception as e:
+        conn.rollback()
+        return False, str(e)
+    finally:
+        conn.close()
+
+def claim_full_ticket_atomic(ticket_id, user_id):
+    conn = get_conn()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        ticket = conn.execute(
+            "SELECT assignment_mode FROM tickets WHERE id=?",(ticket_id,)
+        ).fetchone()
+        if not ticket or ticket["assignment_mode"] != "Team":
+            conn.rollback()
+            return False, "This is not a team ticket.", []
+        rows = conn.execute("""
+            SELECT id,task_name FROM ticket_tasks
+            WHERE ticket_id=? AND claimed_by IS NULL
+              AND assigned_to IS NULL AND status!='Done'
+            ORDER BY id
+        """,(ticket_id,)).fetchall()
+        if not rows:
+            conn.rollback()
+            return False, "No available tasks remain.", []
+        ids = [r["id"] for r in rows]
+        for task_id in ids:
+            conn.execute("""
+                UPDATE ticket_tasks
+                SET claimed_by=?,status='In Progress',assigned_at=?,updated_at=?
+                WHERE id=? AND claimed_by IS NULL AND assigned_to IS NULL AND status!='Done'
+            """,(user_id,now(),now(),task_id))
+        conn.execute(
+            "UPDATE tickets SET claimed_by=?,updated_at=? WHERE id=?",
+            (user_id,now(),ticket_id)
+        )
+        conn.commit()
+        return True, f"Full ticket taken. {len(ids)} task(s) assigned to you.", ids
+    except Exception as e:
+        conn.rollback()
+        return False, str(e), []
+    finally:
+        conn.close()
+
+def ticket_task_ownership(ticket_id):
+    conn = get_conn()
+    rows = conn.execute("""
+        SELECT tt.id,tt.task_name,tt.status,
+               COALESCE(c.full_name,a.full_name,'Available') AS owner
+        FROM ticket_tasks tt
+        LEFT JOIN users c ON tt.claimed_by=c.id
+        LEFT JOIN users a ON tt.assigned_to=a.id
+        WHERE tt.ticket_id=?
+        ORDER BY tt.id
+    """,(ticket_id,)).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
 # ----------------------------- TODAY / FILTERED TASKS -----------------------------
 if menu == "Today":
     st.title("Today's Tasks")
@@ -598,12 +695,40 @@ if menu == "Today":
                 <div class="task-box">
                   <b>{r['ticket_no']} • {r['customer_name']}</b><br>
                   {r['task_name']}<br>
-                  <span class="small-muted">Status: {r['status']} • Owner: {owner} • Due: {r.get('due_date') or '-'}</span>
+                  <span class="small-muted">Status: {r['status']} • Handled By: {owner} • Due: {r.get('due_date') or '-'}</span>
                 </div>
                 """, unsafe_allow_html=True)
 
+
+@st.fragment(run_every="5s")
+def live_team_assignment_board():
+    st.subheader("Live Team Assignment Board")
+    st.caption("Auto-refreshes every 5 seconds")
+    conn = get_conn()
+    rows = conn.execute("""
+        SELECT t.ticket_no,t.customer_name,tt.task_name,tt.status,
+               COALESCE(c.full_name,a.full_name,'Available') AS owner,
+               t.priority,t.due_date
+        FROM ticket_tasks tt
+        JOIN tickets t ON t.id=tt.ticket_id
+        LEFT JOIN users c ON tt.claimed_by=c.id
+        LEFT JOIN users a ON tt.assigned_to=a.id
+        WHERE t.overall_status!='Completed'
+        ORDER BY
+            CASE t.priority WHEN 'Urgent' THEN 1 WHEN 'High' THEN 2
+                 WHEN 'Medium' THEN 3 ELSE 4 END,
+            t.id DESC,tt.id
+    """).fetchall()
+    conn.close()
+    if not rows:
+        st.info("No active task assignments.")
+        return
+    board = pd.DataFrame([dict(r) for r in rows])
+    board.columns = ["Ticket No.","Customer","Bank / Task","Status","Handled By","Priority","Due Date"]
+    st.dataframe(board,use_container_width=True,hide_index=True)
+
 # ----------------------------- MANAGER: DASHBOARD -----------------------------
-elif user["role"] == "Manager" and menu == "Dashboard":
+if user["role"] == "Manager" and menu == "Dashboard":
     st.title("Manager Dashboard")
     st.markdown('<div class="page-subtitle">Live overview of office tickets and workload</div>', unsafe_allow_html=True)
 
@@ -641,6 +766,8 @@ elif user["role"] == "Manager" and menu == "Dashboard":
     conn.close()
     if workload_rows:
         st.dataframe(pd.DataFrame([dict(r) for r in workload_rows]), use_container_width=True, hide_index=True)
+
+    live_team_assignment_board()
 
     st.subheader("Recent Tickets")
     if df.empty:
@@ -863,7 +990,7 @@ elif user["role"] == "Manager" and menu == "All Tickets":
                     st.markdown(f"""
                     <div class="task-box">
                       <b>{t['task_name']}</b><br>
-                      <span class="small-muted">Status: {t['status']} &nbsp; • &nbsp; Owner: {owner}</span>
+                      <span class="small-muted">Status: {t['status']} &nbsp; • &nbsp; Handled By: {owner}</span>
                     </div>
                     """, unsafe_allow_html=True)
                     cc1,cc2 = st.columns([2,1])
@@ -951,7 +1078,10 @@ elif user["role"] == "Manager" and menu == "All Tickets":
 # ----------------------------- TEAM POOL -----------------------------
 elif menu == "Team Pool":
     st.title("Team Pool")
-    st.markdown('<div class="page-subtitle">Open work that can be picked up by available team members</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="page-subtitle">Take the whole ticket or choose only the banks/tasks you can handle</div>',
+        unsafe_allow_html=True
+    )
 
     df = get_ticket_df("t.assignment_mode='Team'")
     team_filter = st.selectbox("Quick Filter", ["All Team Tickets","Open Team Tickets","Completed Today"])
@@ -960,6 +1090,7 @@ elif menu == "Team Pool":
     elif team_filter == "Completed Today" and not df.empty:
         today_str = date.today().isoformat()
         df = df[df["updated_at"].fillna("").str.startswith(today_str)]
+
     if df.empty:
         st.info("No team tickets available.")
     else:
@@ -967,66 +1098,124 @@ elif menu == "Team Pool":
             row = r.to_dict()
             render_ticket_card(row)
             copy_ticket_button(row["ticket_no"], f"copy_pool_{row['id']}")
+
             with st.expander(f"{row['ticket_no']} — {row['customer_name']}"):
                 st.write("**Manager Remarks:**", row.get("manager_remarks") or "-")
-                st.write("**Ticket Owner:**", row.get("claimed_name") or "Not yet claimed")
 
-                if user["role"] == "Employee" and not row.get("claimed_by"):
-                    if st.button("Claim Ticket", key=f"claimticket_{row['id']}", type="primary"):
-                        ok,msg = claim_ticket_atomic(row["id"],user["id"])
+                tasks = tasks_for(row["id"])
+                available = [
+                    t for t in tasks
+                    if not t.get("claimed_by")
+                    and not t.get("assigned_to")
+                    and t["status"] != "Done"
+                ]
+
+                if user["role"] == "Employee" and available:
+                    st.markdown("### Take Work")
+                    c1,c2 = st.columns(2)
+
+                    with c1:
+                        st.markdown("**Take Full Ticket**")
+                        st.caption("Assign every currently available bank/task to yourself.")
+                        if st.button(
+                            "Take Full Ticket",
+                            key=f"full_{row['id']}",
+                            type="primary",
+                            use_container_width=True
+                        ):
+                            ok,msg,ids = claim_full_ticket_atomic(row["id"],user["id"])
+                            if ok:
+                                for task_id in ids:
+                                    t = next((x for x in tasks if x["id"] == task_id),None)
+                                    if t:
+                                        add_activity(row["id"],user["id"],f"Task claimed: {t['task_name']}",task_id)
+                                notify_all_active_employees(
+                                    f"{row['ticket_no']} available work taken by {user['full_name']}",
+                                    ticket_id=row["id"],exclude_user_id=user["id"]
+                                )
+                                recalc_ticket(row["id"])
+                                st.success(msg)
+                                st.rerun()
+                            else:
+                                st.warning(msg)
+
+                    with c2:
+                        st.markdown("**Take Selected Banks / Tasks**")
+                        st.caption("Select only the items you can handle. Others stay available.")
+
+                    selected = []
+                    for t in available:
+                        if st.checkbox(t["task_name"],key=f"pick_{row['id']}_{t['id']}"):
+                            selected.append(t["id"])
+
+                    if st.button(
+                        "Take Selected Tasks",
+                        key=f"partial_{row['id']}",
+                        disabled=not selected,
+                        use_container_width=True
+                    ):
+                        ok,msg = claim_selected_tasks_atomic(row["id"],selected,user["id"])
                         if ok:
-                            add_activity(row["id"],user["id"],f"Ticket claimed by {user['full_name']}")
+                            names = []
+                            for task_id in selected:
+                                t = next((x for x in tasks if x["id"] == task_id),None)
+                                if t:
+                                    names.append(t["task_name"])
+                                    add_activity(row["id"],user["id"],f"Task claimed: {t['task_name']}",task_id)
                             notify_all_active_employees(
-                                f"{row['ticket_no']} has been claimed by {user['full_name']}",
-                                ticket_id=row["id"],
-                                exclude_user_id=user["id"]
+                                f"{user['full_name']} took {', '.join(names)} in {row['ticket_no']}",
+                                ticket_id=row["id"],exclude_user_id=user["id"]
                             )
+                            recalc_ticket(row["id"])
                             st.success(msg)
                             st.rerun()
                         else:
                             st.warning(msg)
 
-                st.markdown("#### Tasks")
+                st.markdown("### Bank / Task Allocation")
                 for t in tasks_for(row["id"]):
                     owner = t.get("claimed_name") or t.get("assigned_name") or "Available"
+                    badge = (
+                        f'<span class="badge b-claimed">Handled by: {owner}</span>'
+                        if owner != "Available"
+                        else '<span class="badge b-open">Available</span>'
+                    )
                     st.markdown(f"""
                     <div class="task-box">
                       <b>{t['task_name']}</b><br>
-                      <span class="small-muted">Status: {t['status']} &nbsp; • &nbsp; Owner: {owner}</span>
+                      <span class="small-muted">Status: {t['status']}</span><br>
+                      {badge}
                     </div>
-                    """, unsafe_allow_html=True)
+                    """,unsafe_allow_html=True)
 
-                    if user["role"] == "Employee":
-                        if not t.get("claimed_by") and not t.get("assigned_to") and t["status"] != "Done":
-                            if st.button("Take This Task", key=f"claimtask_{t['id']}"):
-                                ok,msg,ticket_id = claim_task_atomic(t["id"],user["id"])
-                                if ok:
-                                    add_activity(ticket_id,user["id"],f"Task claimed: {t['task_name']}",t["id"])
-                                    notify_all_active_employees(
-                                        f"Task taken in {row['ticket_no']}: {t['task_name']} by {user['full_name']}",
-                                        ticket_id=row["id"],
-                                        task_id=t["id"],
-                                        exclude_user_id=user["id"]
-                                    )
-                                    recalc_ticket(ticket_id)
-                                    st.success(msg)
-                                    st.rerun()
-                                else:
-                                    st.warning(msg)
-
-                        if t.get("claimed_by") == user["id"] or t.get("assigned_to") == user["id"]:
-                            with st.form(f"updteamtask_{t['id']}"):
-                                statuses = ["In Progress","Waiting for Customer","Documents Required","Rejected","Rework","Done"]
-                                idx = statuses.index(t["status"]) if t["status"] in statuses else 0
-                                ns = st.selectbox("Status",statuses,index=idx,key=f"ts_{t['id']}")
-                                login_id = st.text_input("Login / Application ID",value=t.get("login_id") or "",key=f"li_{t['id']}")
-                                remark = st.text_area("Remark",value=t.get("employee_remark") or "",key=f"er_{t['id']}")
-                                sv = st.form_submit_button("Save Update")
-                            if sv:
-                                valid,msg = validate_text_fields(remark=remark, login_id=login_id)
-                                if not valid:
-                                    st.error(msg)
-                                    st.stop()
+                    is_mine = (
+                        user["role"] == "Employee"
+                        and (t.get("claimed_by") == user["id"] or t.get("assigned_to") == user["id"])
+                    )
+                    if is_mine:
+                        with st.form(f"upd_{t['id']}"):
+                            statuses = [
+                                "In Progress","Waiting for Customer","Documents Required",
+                                "Rejected","Rework","Done"
+                            ]
+                            idx = statuses.index(t["status"]) if t["status"] in statuses else 0
+                            ns = st.selectbox("Status",statuses,index=idx,key=f"s_{t['id']}")
+                            login_id = st.text_input(
+                                "Login / Application ID",
+                                value=t.get("login_id") or "",
+                                key=f"l_{t['id']}"
+                            )
+                            remark = st.text_area(
+                                "Remark",
+                                value=t.get("employee_remark") or "",
+                                key=f"r_{t['id']}"
+                            )
+                            save = st.form_submit_button("Save Update")
+                        if save:
+                            valid,msg = validate_text_fields(remark=remark,login_id=login_id)
+                            if not valid:
+                                st.error(msg)
+                            else:
                                 conn = get_conn()
                                 conn.execute("""
                                     UPDATE ticket_tasks
@@ -1035,9 +1224,36 @@ elif menu == "Team Pool":
                                 """,(ns,login_id.strip(),remark.strip(),now(),t["id"]))
                                 conn.commit()
                                 conn.close()
-                                add_activity(row["id"],user["id"],f"Task '{t['task_name']}' updated to {ns}",t["id"])
+                                add_activity(
+                                    row["id"],user["id"],
+                                    f"Task '{t['task_name']}' updated to {ns}",
+                                    t["id"]
+                                )
                                 recalc_ticket(row["id"])
                                 st.rerun()
+
+                st.markdown("### Comments")
+                for c in comments_for(row["id"]):
+                    st.markdown(f"**{c['full_name']}** · {c['created_at']}")
+                    st.write(c["comment_text"])
+
+                if user["role"] == "Employee":
+                    with st.form(f"comment_{row['id']}"):
+                        text = st.text_input("Add comment",key=f"c_{row['id']}")
+                        post = st.form_submit_button("Post")
+                    if post and text.strip():
+                        valid,msg = validate_text_fields(comment=text)
+                        if not valid:
+                            st.error(msg)
+                        else:
+                            conn = get_conn()
+                            conn.execute(
+                                "INSERT INTO comments(ticket_id,user_id,comment_text,created_at) VALUES (?,?,?,?)",
+                                (row["id"],user["id"],text.strip(),now())
+                            )
+                            conn.commit()
+                            conn.close()
+                            st.rerun()
 
 # ----------------------------- MANAGER: EMPLOYEES -----------------------------
 elif user["role"] == "Manager" and menu == "Employees":
