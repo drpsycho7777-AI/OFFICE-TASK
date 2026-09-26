@@ -1,0 +1,5 @@
+Upload to your GitHub repository:
+1. app.py
+2. requirements.txt
+3. README.md
+4. .streamlit/config.toml
