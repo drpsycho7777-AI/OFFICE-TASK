@@ -8,8 +8,8 @@ import pandas as pd
 DB_PATH = Path(__file__).with_name("tickets.db")
 
 st.set_page_config(
-    page_title="Office Ticket Management",
-    page_icon="🎫",
+    page_title="Office Task Desk",
+    page_icon="✅",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -132,22 +132,140 @@ init_db()
 # ---------- STYLE ----------
 st.markdown("""
 <style>
-.block-container { padding-top: 1.2rem; padding-bottom: 2rem; }
+/* ---------- Global ---------- */
+html, body, [class*="css"] {
+    font-family: "Segoe UI", Arial, sans-serif;
+}
+.block-container {
+    padding-top: 1.4rem;
+    padding-bottom: 2rem;
+    max-width: 1500px;
+}
+h1 {
+    font-size: 2rem !important;
+    font-weight: 750 !important;
+    letter-spacing: -0.3px;
+    margin-bottom: 0.2rem !important;
+}
+h2, h3 {
+    font-weight: 700 !important;
+}
+
+/* ---------- Sidebar ---------- */
+section[data-testid="stSidebar"] {
+    border-right: 1px solid #e5e7eb;
+}
+section[data-testid="stSidebar"] .block-container {
+    padding-top: 1.2rem;
+}
+section[data-testid="stSidebar"] div[role="radiogroup"] label {
+    padding: 0.25rem 0;
+}
+
+/* ---------- KPI Cards ---------- */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(120px, 1fr));
+    gap: 14px;
+    margin: 10px 0 24px 0;
+}
+.kpi-card {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 14px;
+    padding: 16px 18px;
+    box-shadow: 0 2px 8px rgba(15,23,42,0.04);
+}
+.kpi-label {
+    color: #6b7280;
+    font-size: 0.82rem;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+.kpi-value {
+    color: #111827;
+    font-size: 1.8rem;
+    font-weight: 750;
+    line-height: 1.1;
+}
+
+/* ---------- Ticket Cards ---------- */
 .ticket-card {
-    border: 1px solid #e6e8eb;
+    border: 1px solid #e5e7eb;
+    border-left: 4px solid #2563eb;
     border-radius: 14px;
     padding: 16px 18px;
     margin-bottom: 12px;
-    background: white;
+    background: #ffffff;
+    box-shadow: 0 2px 8px rgba(15,23,42,0.04);
 }
-.small-muted { color: #6b7280; font-size: 0.9rem; }
+.ticket-title {
+    font-size: 1.02rem;
+    font-weight: 750;
+    color: #111827;
+    margin-bottom: 7px;
+}
+.small-muted {
+    color: #6b7280;
+    font-size: 0.88rem;
+}
 .badge {
-    display:inline-block;
-    padding:4px 9px;
-    border-radius:999px;
-    background:#f3f4f6;
-    font-size:0.82rem;
-    font-weight:600;
+    display: inline-block;
+    padding: 4px 9px;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    margin-right: 5px;
+}
+.badge-open { background:#eff6ff; color:#1d4ed8; }
+.badge-progress { background:#fff7ed; color:#c2410c; }
+.badge-completed { background:#ecfdf5; color:#047857; }
+.badge-high { background:#fef2f2; color:#b91c1c; }
+.badge-medium { background:#fffbeb; color:#b45309; }
+.badge-normal { background:#f3f4f6; color:#4b5563; }
+
+/* ---------- Header ---------- */
+.page-subtitle {
+    color: #6b7280;
+    margin-top: -2px;
+    margin-bottom: 16px;
+    font-size: 0.92rem;
+}
+.brand-box {
+    padding: 4px 0 10px 0;
+}
+.brand-title {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: #111827;
+}
+.brand-subtitle {
+    font-size: 0.78rem;
+    color: #6b7280;
+}
+
+/* ---------- Buttons ---------- */
+.stButton > button {
+    border-radius: 10px;
+    font-weight: 650;
+}
+.stDownloadButton > button {
+    border-radius: 10px;
+    font-weight: 650;
+}
+
+/* ---------- Inputs ---------- */
+div[data-baseweb="input"] > div,
+div[data-baseweb="select"] > div,
+textarea {
+    border-radius: 10px !important;
+}
+
+/* ---------- Mobile ---------- */
+@media (max-width: 900px) {
+    .kpi-grid {
+        grid-template-columns: repeat(2, minmax(120px, 1fr));
+    }
 }
 </style>
 """, unsafe_allow_html=True)
@@ -157,8 +275,8 @@ if "user" not in st.session_state:
     st.session_state.user = None
 
 def login_screen():
-    st.title("🎫 Office Ticket Management")
-    st.caption("Online demo for internal office task tracking")
+    st.title("Office Task Desk")
+    st.markdown('<div class="page-subtitle">Simple internal task & ticket tracking for your office</div>', unsafe_allow_html=True)
 
     c1, c2, c3 = st.columns([1,1.2,1])
     with c2:
@@ -191,7 +309,12 @@ if not st.session_state.user:
 user = st.session_state.user
 
 # ---------- SIDEBAR ----------
-st.sidebar.title("🎫 Ticket Tool")
+st.sidebar.markdown("""
+<div class="brand-box">
+    <div class="brand-title">✅ Office Task Desk</div>
+    <div class="brand-subtitle">Task & Login Tracker</div>
+</div>
+""", unsafe_allow_html=True)
 st.sidebar.write(f"**{user['full_name']}**")
 st.sidebar.caption(user["role"])
 
@@ -247,21 +370,41 @@ def render_ticket_summary(row):
     due = row.get("due_date") or "-"
     amount = row.get("required_amount")
     amount_txt = f"₹{amount:,.0f}" if amount else "-"
+    status = row.get("overall_status","Open")
+    priority = row.get("priority","Normal")
+    status_class = {
+        "Open": "badge-open",
+        "In Progress": "badge-progress",
+        "Completed": "badge-completed",
+    }.get(status, "badge-open")
+    priority_class = {
+        "High": "badge-high",
+        "Medium": "badge-medium",
+        "Normal": "badge-normal",
+    }.get(priority, "badge-normal")
+
     st.markdown(f"""
     <div class="ticket-card">
-        <div style="font-size:1.1rem;font-weight:700">{row['ticket_no']} — {row['customer_name']}</div>
+        <div class="ticket-title">{row['ticket_no']} &nbsp;•&nbsp; {row['customer_name']}</div>
         <div class="small-muted">
-            Assigned: {row.get('assigned_name','-')} &nbsp; | &nbsp;
-            Loan: {row.get('loan_type','-')} &nbsp; | &nbsp;
-            Amount: {amount_txt} &nbsp; | &nbsp;
-            Due: {due}
+            👤 {row.get('assigned_name','-')} &nbsp;&nbsp; • &nbsp;&nbsp;
+            💼 {row.get('loan_type','-')} &nbsp;&nbsp; • &nbsp;&nbsp;
+            💰 {amount_txt} &nbsp;&nbsp; • &nbsp;&nbsp;
+            📅 {due}
         </div>
-        <div style="margin-top:8px">
-            <span class="badge">{row.get('priority','Normal')}</span>
-            <span class="badge">{row.get('overall_status','Open')}</span>
+        <div style="margin-top:10px">
+            <span class="badge {priority_class}">{priority}</span>
+            <span class="badge {status_class}">{status}</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
+
+def render_kpis(items):
+    cards = "".join(
+        f'<div class="kpi-card"><div class="kpi-label">{label}</div><div class="kpi-value">{value}</div></div>'
+        for label, value in items
+    )
+    st.markdown(f'<div class="kpi-grid">{cards}</div>', unsafe_allow_html=True)
 
 # ---------- MANAGER DASHBOARD ----------
 if user["role"] == "Manager" and menu == "Dashboard":
@@ -280,12 +423,14 @@ if user["role"] == "Manager" and menu == "Dashboard":
                        (df["due_date"].fillna("") != "") &
                        (df["overall_status"] != "Completed")).sum())
 
-    a,b,c,d,e = st.columns(5)
-    a.metric("Total Tickets", total)
-    b.metric("Open", open_count)
-    c.metric("In Progress", in_prog)
-    d.metric("Completed", completed)
-    e.metric("Overdue", overdue)
+    st.markdown('<div class="page-subtitle">Quick overview of all assigned office tasks</div>', unsafe_allow_html=True)
+    render_kpis([
+        ("Total Tickets", total),
+        ("Open", open_count),
+        ("In Progress", in_prog),
+        ("Completed", completed),
+        ("Overdue", overdue),
+    ])
 
     st.subheader("Recent Tickets")
     if df.empty:
@@ -297,6 +442,7 @@ if user["role"] == "Manager" and menu == "Dashboard":
 # ---------- RAISE TICKET ----------
 elif user["role"] == "Manager" and menu == "Raise Ticket":
     st.title("Raise New Ticket")
+    st.markdown('<div class="page-subtitle">Create a task and assign Bank/NBFC logins to an employee</div>', unsafe_allow_html=True)
 
     emps = employees()
     emp_map = {e["full_name"]: e["id"] for e in emps}
@@ -369,6 +515,7 @@ elif user["role"] == "Manager" and menu == "Raise Ticket":
 # ---------- ALL TICKETS ----------
 elif user["role"] == "Manager" and menu == "All Tickets":
     st.title("All Tickets")
+    st.markdown('<div class="page-subtitle">Search and review all office tickets in one place</div>', unsafe_allow_html=True)
     df = ticket_df()
 
     if df.empty:
@@ -408,6 +555,7 @@ elif user["role"] == "Manager" and menu == "All Tickets":
 # ---------- REPORTS ----------
 elif user["role"] == "Manager" and menu == "Reports":
     st.title("Reports")
+    st.markdown('<div class="page-subtitle">Simple downloadable ticket summary</div>', unsafe_allow_html=True)
     df = ticket_df()
     if df.empty:
         st.info("No data available.")
@@ -436,11 +584,13 @@ elif user["role"] == "Employee" and menu == "My Dashboard":
     in_prog = int((df["overall_status"] == "In Progress").sum()) if not df.empty else 0
     completed = int((df["overall_status"] == "Completed").sum()) if not df.empty else 0
 
-    a,b,c,d = st.columns(4)
-    a.metric("Assigned", total)
-    b.metric("Open", open_count)
-    c.metric("In Progress", in_prog)
-    d.metric("Completed", completed)
+    st.markdown('<div class="page-subtitle">Your assigned tasks and current progress</div>', unsafe_allow_html=True)
+    render_kpis([
+        ("Assigned", total),
+        ("Open", open_count),
+        ("In Progress", in_prog),
+        ("Completed", completed),
+    ])
 
     st.subheader("My Recent Tickets")
     if df.empty:
@@ -452,6 +602,7 @@ elif user["role"] == "Employee" and menu == "My Dashboard":
 # ---------- EMPLOYEE TICKETS ----------
 elif user["role"] == "Employee" and menu == "My Tickets":
     st.title("My Tickets")
+    st.markdown('<div class="page-subtitle">Update lender-wise login status and remarks</div>', unsafe_allow_html=True)
     df = ticket_df("t.assigned_to=?", (user["id"],))
 
     if df.empty:
