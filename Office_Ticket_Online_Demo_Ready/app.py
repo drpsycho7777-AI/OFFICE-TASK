@@ -339,41 +339,255 @@ init_db()
 # ----------------------------- STYLE -----------------------------
 st.markdown("""
 <style>
-html, body, [class*="css"] { font-family: "Segoe UI", Arial, sans-serif; }
-.block-container { padding-top: 1.2rem; padding-bottom: 2rem; max-width: 1500px; }
-h1 { font-size: 2rem !important; font-weight: 780 !important; letter-spacing: -0.4px; }
-h2, h3 { font-weight: 700 !important; }
-section[data-testid="stSidebar"] { border-right: 1px solid #e5e7eb; }
-section[data-testid="stSidebar"] .block-container { padding-top: 1.1rem; }
+:root {
+    --navy: #0F172A;
+    --blue: #2563EB;
+    --blue-dark: #1D4ED8;
+    --slate: #475569;
+    --muted: #64748B;
+    --line: #E2E8F0;
+    --soft: #F8FAFC;
+    --panel: #FFFFFF;
+    --success: #059669;
+    --warning: #D97706;
+    --danger: #DC2626;
+}
 
-.brand-title { font-size: 1.15rem; font-weight: 800; color: #111827; }
-.brand-subtitle { font-size: .78rem; color:#6b7280; margin-bottom: 12px; }
-.page-subtitle { color:#6b7280; margin-top:-6px; margin-bottom:16px; font-size:.93rem; }
+html, body, [class*="css"] {
+    font-family: "Segoe UI", Inter, Arial, sans-serif;
+    color: var(--navy);
+}
 
-.kpi-grid { display:grid; grid-template-columns:repeat(5,minmax(120px,1fr)); gap:12px; margin:10px 0 22px; }
-.kpi-card { background:#fff; border:1px solid #e5e7eb; border-radius:14px; padding:16px 18px; box-shadow:0 2px 8px rgba(15,23,42,.04); }
-.kpi-label { color:#6b7280; font-size:.8rem; font-weight:650; }
-.kpi-value { color:#111827; font-size:1.7rem; font-weight:800; }
+[data-testid="stAppViewContainer"] {
+    background: #F7F9FC;
+}
 
-.ticket-card { border:1px solid #e5e7eb; border-left:4px solid #2563eb; border-radius:14px; padding:15px 17px; margin-bottom:10px; background:#fff; box-shadow:0 2px 8px rgba(15,23,42,.04); }
-.ticket-title { font-size:1.02rem; font-weight:780; color:#111827; }
-.small-muted { color:#6b7280; font-size:.86rem; margin-top:5px; }
-.badge { display:inline-block; padding:4px 9px; border-radius:999px; font-size:.75rem; font-weight:750; margin-right:5px; margin-top:8px; }
-.b-open { background:#eff6ff; color:#1d4ed8; }
-.b-progress { background:#fff7ed; color:#c2410c; }
-.b-done { background:#ecfdf5; color:#047857; }
-.b-high { background:#fef2f2; color:#b91c1c; }
-.b-med { background:#fffbeb; color:#b45309; }
-.b-normal { background:#f3f4f6; color:#4b5563; }
-.b-team { background:#f5f3ff; color:#6d28d9; }
-.b-claimed { background:#ecfeff; color:#0f766e; }
+.block-container {
+    padding-top: 1.5rem;
+    padding-bottom: 2.5rem;
+    max-width: 1480px;
+}
 
-.task-box { border:1px solid #e5e7eb; border-radius:12px; padding:13px 15px; margin-bottom:10px; background:#fafafa; }
+h1 {
+    font-size: 2rem !important;
+    font-weight: 760 !important;
+    letter-spacing: -0.5px;
+    color: var(--navy) !important;
+    margin-bottom: .15rem !important;
+}
+h2, h3 {
+    color: var(--navy) !important;
+    font-weight: 720 !important;
+}
+p, label {
+    color: #334155;
+}
 
-.stButton > button, .stDownloadButton > button { border-radius:10px; font-weight:650; }
-div[data-baseweb="input"] > div, div[data-baseweb="select"] > div, textarea { border-radius:10px !important; }
+/* Sidebar */
+section[data-testid="stSidebar"] {
+    background: #FFFFFF;
+    border-right: 1px solid var(--line);
+}
+section[data-testid="stSidebar"] .block-container {
+    padding-top: 1.25rem;
+}
+section[data-testid="stSidebar"] div[role="radiogroup"] label {
+    border-radius: 9px;
+    padding: 4px 6px;
+}
+.brand-wrap {
+    padding: 2px 0 12px 0;
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 10px;
+}
+.brand-title {
+    font-size: 1.12rem;
+    font-weight: 800;
+    color: var(--navy);
+    letter-spacing: -.2px;
+}
+.brand-subtitle {
+    font-size: .76rem;
+    color: var(--muted);
+    margin-top: 2px;
+}
+.user-chip {
+    background: var(--soft);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 9px 10px;
+    margin: 8px 0 10px;
+}
 
-@media (max-width:900px){ .kpi-grid{grid-template-columns:repeat(2,minmax(120px,1fr));} }
+/* Page header */
+.page-subtitle {
+    color: var(--muted);
+    margin-top: -4px;
+    margin-bottom: 18px;
+    font-size: .93rem;
+}
+.section-label {
+    font-size: .78rem;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--muted);
+    font-weight: 750;
+    margin: 4px 0 7px;
+}
+
+/* Cards */
+.kpi-grid {
+    display:grid;
+    grid-template-columns:repeat(5,minmax(120px,1fr));
+    gap:14px;
+    margin:10px 0 24px;
+}
+.kpi-card {
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:16px 18px;
+    box-shadow:0 2px 8px rgba(15,23,42,.035);
+}
+.kpi-label {
+    color:var(--muted);
+    font-size:.78rem;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+}
+.kpi-value {
+    color:var(--navy);
+    font-size:1.75rem;
+    font-weight:800;
+    margin-top:4px;
+}
+
+.ticket-card {
+    border:1px solid var(--line);
+    border-left:4px solid var(--blue);
+    border-radius:13px;
+    padding:15px 17px;
+    margin-bottom:11px;
+    background:#fff;
+    box-shadow:0 2px 9px rgba(15,23,42,.035);
+}
+.ticket-title {
+    font-size:1.02rem;
+    font-weight:780;
+    color:var(--navy);
+}
+.small-muted {
+    color:var(--muted);
+    font-size:.85rem;
+    margin-top:5px;
+}
+.task-box {
+    border:1px solid var(--line);
+    border-radius:11px;
+    padding:13px 15px;
+    margin-bottom:10px;
+    background:#fff;
+}
+
+/* Badges */
+.badge {
+    display:inline-block;
+    padding:4px 9px;
+    border-radius:999px;
+    font-size:.73rem;
+    font-weight:760;
+    margin-right:5px;
+    margin-top:8px;
+}
+.b-open { background:#EFF6FF; color:#1D4ED8; }
+.b-progress { background:#FFF7ED; color:#C2410C; }
+.b-done { background:#ECFDF5; color:#047857; }
+.b-high { background:#FEF2F2; color:#B91C1C; }
+.b-med { background:#FFFBEB; color:#B45309; }
+.b-normal { background:#F1F5F9; color:#475569; }
+.b-team { background:#F5F3FF; color:#6D28D9; }
+.b-claimed { background:#ECFEFF; color:#0F766E; }
+
+/* Forms / inputs */
+[data-testid="stForm"] {
+    background:#FFFFFF;
+    border:1px solid var(--line) !important;
+    border-radius:14px !important;
+    padding:18px !important;
+    box-shadow:0 2px 8px rgba(15,23,42,.025);
+}
+div[data-baseweb="input"] > div,
+div[data-baseweb="select"] > div,
+textarea {
+    border-radius:9px !important;
+    border-color:#CBD5E1 !important;
+}
+div[data-baseweb="input"] > div:focus-within,
+div[data-baseweb="select"] > div:focus-within,
+textarea:focus {
+    border-color:var(--blue) !important;
+}
+
+/* Buttons */
+.stButton > button,
+.stDownloadButton > button,
+.stFormSubmitButton > button {
+    border-radius:9px !important;
+    font-weight:700 !important;
+    min-height:2.55rem;
+}
+button[kind="primary"] {
+    background:var(--blue) !important;
+    border-color:var(--blue) !important;
+}
+button[kind="primary"]:hover {
+    background:var(--blue-dark) !important;
+    border-color:var(--blue-dark) !important;
+}
+
+/* Tabs */
+button[data-baseweb="tab"] {
+    font-weight:650;
+}
+
+/* Dataframes */
+[data-testid="stDataFrame"] {
+    border:1px solid var(--line);
+    border-radius:12px;
+    overflow:hidden;
+}
+
+/* Expanders */
+details {
+    background:#FFFFFF;
+    border-radius:11px !important;
+}
+
+/* Alerts */
+[data-testid="stAlert"] {
+    border-radius:10px;
+}
+
+/* Assignment selector */
+.assignment-panel {
+    background:#FFFFFF;
+    border:1px solid var(--line);
+    border-radius:13px;
+    padding:14px 16px 8px;
+    margin-bottom:14px;
+}
+.assignment-help {
+    color:var(--muted);
+    font-size:.84rem;
+    margin-top:-4px;
+    margin-bottom:6px;
+}
+
+@media (max-width:900px) {
+    .kpi-grid { grid-template-columns:repeat(2,minmax(120px,1fr)); }
+    .block-container { padding-left:1rem; padding-right:1rem; }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -383,7 +597,7 @@ if "user" not in st.session_state:
 
 def login_screen():
     st.title("Office Task Desk")
-    st.markdown('<div class="page-subtitle">Internal ticket, task and login tracking</div>', unsafe_allow_html=True)
+    st.markdown('<div class="page-subtitle">Secure internal task, ticket and team workflow management.</div>', unsafe_allow_html=True)
     c1,c2,c3 = st.columns([1,1.05,1])
     with c2:
         with st.container(border=True):
@@ -412,14 +626,22 @@ user = st.session_state.user
 
 # ----------------------------- SIDEBAR -----------------------------
 st.sidebar.markdown("""
-<div class="brand-title">✅ Office Task Desk</div>
-<div class="brand-subtitle">Ticket & Team Task Tracker</div>
+<div class="brand-wrap">
+  <div class="brand-title">Office Task Desk</div>
+  <div class="brand-subtitle">Task, Ticket & Team Workflow</div>
+</div>
 """, unsafe_allow_html=True)
-st.sidebar.write(f"**{user['full_name']}**")
-st.sidebar.caption(user["role"])
 
 notif_count = unread_notification_count(user["id"])
-st.sidebar.caption(f"Notifications: {notif_count}")
+st.sidebar.markdown(
+    f"""
+    <div class="user-chip">
+      <div style="font-weight:750;color:#0F172A">{user['full_name']}</div>
+      <div style="font-size:.78rem;color:#64748B;margin-top:2px">{user['role']} &nbsp; • &nbsp; {notif_count} new notification(s)</div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 if user["role"] == "Manager":
     menu = st.sidebar.radio("Menu", [
@@ -703,7 +925,7 @@ if menu == "Today":
 @st.fragment(run_every="5s")
 def live_team_assignment_board():
     st.subheader("Live Team Assignment Board")
-    st.caption("Auto-refreshes every 5 seconds")
+    st.caption("See who is handling each bank/task. This board refreshes automatically every 5 seconds.")
     conn = get_conn()
     rows = conn.execute("""
         SELECT t.ticket_no,t.customer_name,tt.task_name,tt.status,
@@ -779,33 +1001,86 @@ if user["role"] == "Manager" and menu == "Dashboard":
 # ----------------------------- MANAGER: RAISE TICKET -----------------------------
 elif user["role"] == "Manager" and menu == "Raise Ticket":
     st.title("Raise New Ticket")
-    st.markdown('<div class="page-subtitle">Assign directly to one employee or publish to the whole team</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="page-subtitle">Create a case, define its tasks, and assign it to one employee or the complete team.</div>',
+        unsafe_allow_html=True
+    )
 
     emps = employees()
     emp_map = {e["full_name"]: e["id"] for e in emps}
 
-    with st.form("raise_ticket"):
-        c1,c2 = st.columns(2)
-        with c1:
-            customer = st.text_input("Customer / Company Name *")
-            loan_type = st.selectbox("Loan Type", ["USL","LAP","HL","Used Car","Other"])
-            surrogate = st.selectbox("Surrogate", ["Banking","GST","Financial","Other"])
-        with c2:
-            mode = st.selectbox("Assign Ticket To", ["Individual Employee","Whole Team"])
+    st.markdown('<div class="section-label">Assignment</div>', unsafe_allow_html=True)
+    with st.container(border=True):
+        mode = st.radio(
+            "Who should receive this ticket?",
+            ["Whole Team", "Individual Employee"],
+            horizontal=True,
+            key="raise_assignment_mode",
+            help="Whole Team makes the case available in the Team Pool. Individual Employee assigns it directly."
+        )
+        if mode == "Whole Team":
+            st.info("This ticket will be visible to the whole team. Employees can take the full ticket or select individual banks/tasks.")
             selected_emp = None
-            if mode == "Individual Employee":
-                selected_emp = st.selectbox("Employee *", list(emp_map.keys()) if emp_map else ["No active employees"])
-            priority = st.selectbox("Priority", ["Urgent","High","Medium","Normal"])
-            due = st.date_input("Due Date")
+        else:
+            if emp_map:
+                selected_emp = st.selectbox(
+                    "Select Employee *",
+                    list(emp_map.keys()),
+                    key="raise_selected_employee"
+                )
+            else:
+                selected_emp = None
+                st.warning("No active employees found. Create an employee account first.")
 
-        remarks = st.text_area("Manager Remarks", placeholder="Case instructions, document notes, special points...")
-        st.markdown("#### Initial Tasks")
-        task_text = st.text_area(
-            "Add one task per line *",
-            placeholder="Example:\nLogin in HDFC Bank\nLogin in Tata Capital\nCheck GST documents"
+    st.markdown('<div class="section-label">Ticket Details</div>', unsafe_allow_html=True)
+
+    with st.form("raise_ticket", clear_on_submit=False):
+        c1,c2 = st.columns(2, gap="large")
+        with c1:
+            customer = st.text_input(
+                "Customer / Company Name *",
+                placeholder="Enter customer or business name"
+            )
+            loan_type = st.selectbox(
+                "Loan Type",
+                ["USL","LAP","HL","Used Car","Other"]
+            )
+            surrogate = st.selectbox(
+                "Surrogate",
+                ["Banking","GST","Financial","Other"]
+            )
+
+        with c2:
+            priority = st.selectbox(
+                "Priority",
+                ["Urgent","High","Medium","Normal"]
+            )
+            due = st.date_input("Due Date")
+            st.caption(
+                "Assignment: Whole Team"
+                if mode == "Whole Team"
+                else f"Assignment: {selected_emp or 'No employee selected'}"
+            )
+
+        remarks = st.text_area(
+            "Manager Remarks",
+            placeholder="Case instructions, document notes, special points...",
+            height=105
         )
 
-        submit = st.form_submit_button("Create Ticket", type="primary", use_container_width=True)
+        st.markdown("#### Initial Tasks")
+        st.caption("Add one bank/task per line. Each line becomes a separate task that can be assigned or claimed independently.")
+        task_text = st.text_area(
+            "Tasks *",
+            placeholder="Login in HDFC Bank\nLogin in ICICI Bank\nLogin in Axis Bank\nLogin in Tata Capital",
+            height=145
+        )
+
+        submit = st.form_submit_button(
+            "Create Ticket",
+            type="primary",
+            use_container_width=True
+        )
 
     if submit:
         task_lines = [x.strip() for x in task_text.splitlines() if x.strip()]
@@ -814,6 +1089,7 @@ elif user["role"] == "Manager" and menu == "Raise Ticket":
             manager_remarks=remarks,
             tasks=" ".join(task_lines)
         )
+
         if not valid:
             st.error(msg)
         elif not customer.strip():
@@ -822,9 +1098,12 @@ elif user["role"] == "Manager" and menu == "Raise Ticket":
             st.error("Add at least one task.")
         elif mode == "Individual Employee" and not emp_map:
             st.error("Create an employee first.")
+        elif mode == "Individual Employee" and not selected_emp:
+            st.error("Select an employee.")
         else:
             assigned_to = emp_map.get(selected_emp) if mode == "Individual Employee" else None
             assignment_mode = "Individual" if mode == "Individual Employee" else "Team"
+
             conn = get_conn()
             cur = conn.cursor()
             cur.execute("""
@@ -839,6 +1118,7 @@ elif user["role"] == "Manager" and menu == "Raise Ticket":
             ticket_id = cur.lastrowid
             ticket_no = f"GFS-{ticket_id:05d}"
             cur.execute("UPDATE tickets SET ticket_no=? WHERE id=?", (ticket_no,ticket_id))
+
             for task_name in task_lines:
                 cur.execute("""
                     INSERT INTO ticket_tasks(
@@ -849,14 +1129,31 @@ elif user["role"] == "Manager" and menu == "Raise Ticket":
                     assigned_to if assignment_mode=="Individual" else None,
                     user["id"],now(),now()
                 ))
+
             conn.commit()
             conn.close()
-            add_activity(ticket_id,user["id"],f"Ticket created ({assignment_mode}) with {len(task_lines)} task(s)")
+
+            add_activity(
+                ticket_id,user["id"],
+                f"Ticket created ({assignment_mode}) with {len(task_lines)} task(s)"
+            )
+
             if assignment_mode == "Individual":
-                notify_user(assigned_to, f"New ticket assigned: {ticket_no} - {customer.strip()}", ticket_id=ticket_id)
+                notify_user(
+                    assigned_to,
+                    f"New ticket assigned: {ticket_no} - {customer.strip()}",
+                    ticket_id=ticket_id
+                )
             else:
-                notify_all_active_employees(f"New team ticket available: {ticket_no} - {customer.strip()}", ticket_id=ticket_id)
-            st.success(f"{ticket_no} created successfully.")
+                notify_all_active_employees(
+                    f"New team ticket available: {ticket_no} - {customer.strip()}",
+                    ticket_id=ticket_id
+                )
+
+            st.success(
+                f"{ticket_no} created for "
+                + ("the Whole Team." if assignment_mode == "Team" else selected_emp + ".")
+            )
 
 # ----------------------------- MANAGER: ALL TICKETS -----------------------------
 elif user["role"] == "Manager" and menu == "All Tickets":
